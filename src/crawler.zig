@@ -143,6 +143,7 @@ pub const Crawler = struct {
         if (!scanner.findKey("\"chapter\"")) return results;
         if (!scanner.findKey("\"data\"")) return results;
         if (!scanner.skipToChar('[')) return results;
+        scanner.pos += 1; // skip past '['
 
         var page_num: u32 = 1;
         while (scanner.pos < scanner.data.len) {

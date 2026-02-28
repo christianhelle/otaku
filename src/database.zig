@@ -207,63 +207,39 @@ pub const Database = struct {
         try self.saveProgressFile();
     }
 
-    fn saveMangaFile(self: *const Database) !void {
+    fn saveFile(self: *const Database, name: []const u8, serializeFn: anytype, items: anytype, next_id: ?u64) !void {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = try self.dbPath("manga.db", &path_buf);
-        const file = try fs.createFileAbsolute(path, .{});
-        defer file.close();
-        var buf_writer = std.io.bufferedWriter(file.writer());
-        const writer = buf_writer.writer();
+        const path = try self.dbPath(name, &path_buf);
+
+        var buf = std.array_list.Managed(u8).init(self.allocator);
+        defer buf.deinit();
+        const writer = buf.writer();
+
         try writer.writeAll(&MAGIC);
         try writer.writeInt(u32, VERSION, .little);
-        try writer.writeInt(u32, @intCast(self.manga_list.items.len), .little);
-        try writer.writeInt(u64, self.next_manga_id, .little);
-        for (self.manga_list.items) |*m| try manga.serializeManga(writer, m);
-        try buf_writer.flush();
+        try writer.writeInt(u32, @intCast(items.len), .little);
+        if (next_id) |nid| try writer.writeInt(u64, nid, .little);
+        for (items) |*item| try serializeFn(writer, item);
+
+        const file = try fs.createFileAbsolute(path, .{});
+        defer file.close();
+        try file.writeAll(buf.items);
+    }
+
+    fn saveMangaFile(self: *const Database) !void {
+        try self.saveFile("manga.db", manga.serializeManga, self.manga_list.items, self.next_manga_id);
     }
 
     fn saveChapterFile(self: *const Database) !void {
-        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = try self.dbPath("chapters.db", &path_buf);
-        const file = try fs.createFileAbsolute(path, .{});
-        defer file.close();
-        var buf_writer = std.io.bufferedWriter(file.writer());
-        const writer = buf_writer.writer();
-        try writer.writeAll(&MAGIC);
-        try writer.writeInt(u32, VERSION, .little);
-        try writer.writeInt(u32, @intCast(self.chapter_list.items.len), .little);
-        try writer.writeInt(u64, self.next_chapter_id, .little);
-        for (self.chapter_list.items) |*c| try manga.serializeChapter(writer, c);
-        try buf_writer.flush();
+        try self.saveFile("chapters.db", manga.serializeChapter, self.chapter_list.items, self.next_chapter_id);
     }
 
     fn savePageFile(self: *const Database) !void {
-        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = try self.dbPath("pages.db", &path_buf);
-        const file = try fs.createFileAbsolute(path, .{});
-        defer file.close();
-        var buf_writer = std.io.bufferedWriter(file.writer());
-        const writer = buf_writer.writer();
-        try writer.writeAll(&MAGIC);
-        try writer.writeInt(u32, VERSION, .little);
-        try writer.writeInt(u32, @intCast(self.page_list.items.len), .little);
-        try writer.writeInt(u64, self.next_page_id, .little);
-        for (self.page_list.items) |*p| try manga.serializePage(writer, p);
-        try buf_writer.flush();
+        try self.saveFile("pages.db", manga.serializePage, self.page_list.items, self.next_page_id);
     }
 
     fn saveProgressFile(self: *const Database) !void {
-        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = try self.dbPath("progress.db", &path_buf);
-        const file = try fs.createFileAbsolute(path, .{});
-        defer file.close();
-        var buf_writer = std.io.bufferedWriter(file.writer());
-        const writer = buf_writer.writer();
-        try writer.writeAll(&MAGIC);
-        try writer.writeInt(u32, VERSION, .little);
-        try writer.writeInt(u32, @intCast(self.progress_list.items.len), .little);
-        for (self.progress_list.items) |*p| try manga.serializeProgress(writer, p);
-        try buf_writer.flush();
+        try self.saveFile("progress.db", manga.serializeProgress, self.progress_list.items, null);
     }
 
     fn loadAll(self: *Database) !void {
@@ -282,13 +258,24 @@ pub const Database = struct {
         };
     }
 
-    fn loadMangaFile(self: *Database) !void {
+    fn readFileContents(self: *const Database, name: []const u8) ![]u8 {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = try self.dbPath("manga.db", &path_buf);
+        const path = try self.dbPath(name, &path_buf);
         const file = try fs.openFileAbsolute(path, .{});
         defer file.close();
-        var buf_reader = std.io.bufferedReader(file.reader());
-        const reader = buf_reader.reader();
+        const stat = try file.stat();
+        const data = try self.allocator.alloc(u8, stat.size);
+        errdefer self.allocator.free(data);
+        const n = try file.readAll(data);
+        if (n != stat.size) return error.UnexpectedEof;
+        return data;
+    }
+
+    fn loadMangaFile(self: *Database) !void {
+        const data = try self.readFileContents("manga.db");
+        defer self.allocator.free(data);
+        var fbs = std.io.fixedBufferStream(data);
+        const reader = fbs.reader();
         try validateHeader(reader);
         const count = try reader.readInt(u32, .little);
         self.next_manga_id = try reader.readInt(u64, .little);
@@ -299,12 +286,10 @@ pub const Database = struct {
     }
 
     fn loadChapterFile(self: *Database) !void {
-        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = try self.dbPath("chapters.db", &path_buf);
-        const file = try fs.openFileAbsolute(path, .{});
-        defer file.close();
-        var buf_reader = std.io.bufferedReader(file.reader());
-        const reader = buf_reader.reader();
+        const data = try self.readFileContents("chapters.db");
+        defer self.allocator.free(data);
+        var fbs = std.io.fixedBufferStream(data);
+        const reader = fbs.reader();
         try validateHeader(reader);
         const count = try reader.readInt(u32, .little);
         self.next_chapter_id = try reader.readInt(u64, .little);
@@ -315,12 +300,10 @@ pub const Database = struct {
     }
 
     fn loadPageFile(self: *Database) !void {
-        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = try self.dbPath("pages.db", &path_buf);
-        const file = try fs.openFileAbsolute(path, .{});
-        defer file.close();
-        var buf_reader = std.io.bufferedReader(file.reader());
-        const reader = buf_reader.reader();
+        const data = try self.readFileContents("pages.db");
+        defer self.allocator.free(data);
+        var fbs = std.io.fixedBufferStream(data);
+        const reader = fbs.reader();
         try validateHeader(reader);
         const count = try reader.readInt(u32, .little);
         self.next_page_id = try reader.readInt(u64, .little);
@@ -331,12 +314,10 @@ pub const Database = struct {
     }
 
     fn loadProgressFile(self: *Database) !void {
-        var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-        const path = try self.dbPath("progress.db", &path_buf);
-        const file = try fs.openFileAbsolute(path, .{});
-        defer file.close();
-        var buf_reader = std.io.bufferedReader(file.reader());
-        const reader = buf_reader.reader();
+        const data = try self.readFileContents("progress.db");
+        defer self.allocator.free(data);
+        var fbs = std.io.fixedBufferStream(data);
+        const reader = fbs.reader();
         try validateHeader(reader);
         const count = try reader.readInt(u32, .little);
         for (0..count) |_| {
