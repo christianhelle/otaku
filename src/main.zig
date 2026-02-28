@@ -66,7 +66,7 @@ const App = struct {
         const db_path: [:0]const u8 = db_path_s[0 .. db_path_s.len - 1 :0];
 
         const db = try database.Database.open(allocator, db_path);
-        const gui = try ui.Ui.init(allocator, "Otaku \xe2\x80\x93 Manga Reader", 1280, 780);
+        const gui = try ui.Ui.init(allocator, "Otaku - Manga Reader", 1280, 780);
 
         return App{
             .allocator = allocator,
@@ -311,7 +311,7 @@ const App = struct {
             const query = self.search.query_buf.items;
             self.search.results = c2.searchMangaDex(query) catch |err| blk: {
                 const msg = switch (err) {
-                    crawler.CrawlerError.NetworkError => "Network error \xe2\x80\x93 check your internet connection",
+                    crawler.CrawlerError.NetworkError => "Network error - check your internet connection",
                     crawler.CrawlerError.ParseError => "Failed to parse response",
                     else => "Search failed",
                 };
