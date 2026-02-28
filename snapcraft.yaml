@@ -1,0 +1,46 @@
+name: otaku
+base: core22
+version: 0.1.0
+summary: A high-performance desktop manga reader
+description: |
+  Otaku is a fast manga reader that crawls well-known manga websites,
+  stores chapters locally in a compact binary database, and renders
+  via an immediate-mode UI designed for maximum performance.
+  Built with Zig for speed and reliability.
+
+grade: stable
+confinement: strict
+
+apps:
+  otaku:
+    command: bin/otaku
+    plugs:
+      - home
+      - network
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - opengl
+      - removable-media
+
+parts:
+  zig:
+    plugin: nil
+    build-packages:
+      - curl
+      - xz-utils
+    override-build: |
+      snap install zig --classic --beta
+
+  otaku:
+    after: [zig]
+    plugin: nil
+    source: .
+    override-build: |
+      export PATH="$SNAPCRAFT_STAGE/zig:$PATH"
+      zig build -Doptimize=ReleaseFast
+      mkdir -p $SNAPCRAFT_PART_INSTALL/bin
+      cp zig-out/bin/otaku $SNAPCRAFT_PART_INSTALL/bin/
+    stage-packages:
+      - libc6
