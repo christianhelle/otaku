@@ -1,0 +1,26 @@
+# Zig build artifacts
+zig-cache/
+zig-out/
+.zig-cache/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Snap build artifacts
+parts/
+prime/
+stage/
+*.snap
+
+# Database files (generated at runtime)
+*.db
+*.db-wal
+*.db-shm

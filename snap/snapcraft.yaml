@@ -1,0 +1,90 @@
+name: otaku
+version: "0.1.0"
+summary: Desktop Manga Reader – browse, search and read manga offline
+description: |
+  Otaku is a fast desktop manga reader built with Zig and SDL2.
+
+  Features:
+  - Browse a personal manga library stored locally in SQLite
+  - Search multiple manga sources (MangaDex and more)
+  - Immediate mode game-loop UI for maximum performance
+  - Chapter and page tracking with read/unread state
+  - Offline reading of downloaded chapters
+
+base: core24
+confinement: strict
+
+grade: devel
+
+apps:
+  otaku:
+    command: bin/otaku
+    plugs:
+      - network
+      - network-bind
+      - home
+      - opengl
+      - x11
+      - wayland
+      - desktop
+      - desktop-legacy
+      - audio-playback
+
+parts:
+  zig-toolchain:
+    plugin: nil
+    override-pull: |
+      craftctl default
+    override-build: |
+      # Download and install Zig 0.15.2
+      ZIG_VERSION="0.15.2"
+      ZIG_ARCH="x86_64-linux"
+      ZIG_URL="https://ziglang.org/builds/zig-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz"
+      curl -L "${ZIG_URL}" -o /tmp/zig.tar.xz
+      tar xf /tmp/zig.tar.xz -C /tmp
+      mkdir -p ${CRAFT_STAGE}/zig-toolchain
+      cp -r /tmp/zig-${ZIG_ARCH}-${ZIG_VERSION}/. ${CRAFT_STAGE}/zig-toolchain/
+      rm -f /tmp/zig.tar.xz
+    build-packages:
+      - curl
+      - xz-utils
+
+  dependencies:
+    plugin: nil
+    stage-packages:
+      - libsdl2-2.0-0
+      - libsdl2-ttf-2.0-0
+      - libsdl2-image-2.0-0
+      - libsqlite3-0
+      - libgl1
+      - libgles2
+      - fonts-dejavu-core
+      - fonts-ubuntu
+    build-packages:
+      - libsdl2-dev
+      - libsdl2-ttf-dev
+      - libsdl2-image-dev
+      - libsqlite3-dev
+      - libgl-dev
+
+  otaku:
+    plugin: nil
+    source: .
+    after:
+      - zig-toolchain
+      - dependencies
+    override-build: |
+      export PATH="${CRAFT_STAGE}/zig-toolchain:${PATH}"
+      zig version
+      zig build -Doptimize=ReleaseSafe
+      install -Dm755 zig-out/bin/otaku ${CRAFT_PART_INSTALL}/bin/otaku
+    build-packages:
+      - libsdl2-dev
+      - libsdl2-ttf-dev
+      - libsdl2-image-dev
+      - libsqlite3-dev
+      - libgl-dev
+
+layout:
+  /usr/share/fonts:
+    bind: $SNAP/usr/share/fonts
