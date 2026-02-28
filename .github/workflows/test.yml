@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+    branches: [ "main", "master", "copilot/**" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+env:
+  ZIG_VERSION: "0.15.2"
+
+jobs:
+  test:
+    name: Unit Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig ${{ env.ZIG_VERSION }}
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libsdl2-dev libsdl2-ttf-dev \
+            libsqlite3-dev
+
+      - name: Run unit tests
+        run: zig build test --summary all
+
+      - name: Run module tests (verbose)
+        run: |
+          echo "=== manga.zig tests ==="
+          zig test src/manga.zig
+
+          echo "=== database.zig tests ==="
+          zig test src/database.zig -lsqlite3 -lc
+
+          echo "=== crawler.zig tests ==="
+          zig test src/crawler.zig
