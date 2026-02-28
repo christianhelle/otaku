@@ -1,0 +1,2 @@
+# otaku
+Desktop Manga Reader
