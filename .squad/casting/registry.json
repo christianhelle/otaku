@@ -1,0 +1,37 @@
+{
+  "universe": "alien",
+  "agents": [
+    {
+      "persistent_name": "Ripley",
+      "universe": "alien",
+      "role": "Lead",
+      "created_at": "2026-03-09T22:26:02.658Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    {
+      "persistent_name": "Dallas",
+      "universe": "alien",
+      "role": "Frontend",
+      "created_at": "2026-03-09T22:26:02.658Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    {
+      "persistent_name": "Hicks",
+      "universe": "alien",
+      "role": "Backend",
+      "created_at": "2026-03-09T22:26:02.658Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    {
+      "persistent_name": "Newt",
+      "universe": "alien",
+      "role": "Tester",
+      "created_at": "2026-03-09T22:26:02.658Z",
+      "legacy_named": false,
+      "status": "active"
+    }
+  ]
+}
