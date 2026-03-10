@@ -1,0 +1,19 @@
+# Spike — History
+
+## Core Context
+
+**Project:** otaku — terminal-based manga browser and downloader  
+**Language:** Zig (0.15.2)  
+**User:** Christian Helle  
+**Build:** `zig build` | **Test:** `zig build test`  
+**Stack:** Zig, terminal UI (TUI), HTTP client, manga scraping  
+**Sources:** MangaFox/FanFox and other manga websites  
+**Repo:** C:\projects\christianhelle\otaku  
+
+**Team:**
+- Spike (me) — Lead
+- Jet — Systems Dev (HTTP, scraping, download engine)
+- Faye — TUI Dev (terminal UI, navigation, display)
+- Ed — Tester (tests, edge cases, quality)
+
+## Learnings

@@ -1,0 +1,6 @@
+{
+  "universe": "Cowboy Bebop",
+  "capacity": 5,
+  "allow_overflow": true,
+  "overflow_strategy": "diegetic"
+}

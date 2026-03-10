@@ -1,0 +1,15 @@
+{
+  "assignments": [
+    {
+      "assignment_id": "otaku-2026-03-10",
+      "universe": "Cowboy Bebop",
+      "created_at": "2026-03-10T06:26:06.058Z",
+      "agents": [
+        { "name": "Spike", "role": "Lead" },
+        { "name": "Jet", "role": "Systems Dev" },
+        { "name": "Faye", "role": "TUI Dev" },
+        { "name": "Ed", "role": "Tester" }
+      ]
+    }
+  ]
+}
