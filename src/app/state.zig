@@ -61,6 +61,13 @@ pub const AppState = struct {
     }
 
     pub fn deinit(self: *AppState, allocator: std.mem.Allocator) void {
+        for (self.category_titles) |*t| t.deinit(allocator);
+        allocator.free(self.category_titles);
+        if (self.current_title) |*t| t.deinit(allocator);
+        for (self.current_chapters) |*ch| ch.deinit(allocator);
+        allocator.free(self.current_chapters);
+        for (self.search_results) |*t| t.deinit(allocator);
+        allocator.free(self.search_results);
         self.chapter_selections.deinit(allocator);
         self.download_jobs.deinit(allocator);
     }

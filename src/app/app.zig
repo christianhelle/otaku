@@ -12,6 +12,8 @@ const AppState = state_mod.AppState;
 const Screen = state_mod.Screen;
 const router = @import("router.zig");
 const actions_mod = @import("actions.zig");
+const fanfox_client_mod = @import("../fanfox/client.zig");
+const config_mod = @import("../storage/config.zig");
 
 const HOME_LABELS = [_][]const u8{
     "Hot Manga Releases",
@@ -33,6 +35,7 @@ pub const App = struct {
     allocator: std.mem.Allocator,
     terminal: Terminal,
     state: AppState,
+    client: fanfox_client_mod.FanfoxClient,
     running: bool = true,
 
     pub fn init(allocator: std.mem.Allocator) !App {
@@ -40,11 +43,13 @@ pub const App = struct {
             .allocator = allocator,
             .terminal = try Terminal.init(),
             .state = AppState.init(allocator),
+            .client = fanfox_client_mod.FanfoxClient.init(allocator, config_mod.Config.defaults),
         };
     }
 
     pub fn deinit(self: *App) void {
         self.state.deinit(self.allocator);
+        self.client.deinit();
         self.terminal.deinit();
     }
 

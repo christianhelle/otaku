@@ -254,11 +254,261 @@ pub fn main() !void {
             defer app.deinit();
             try app.run();
         },
-        .browse => try printNotImplemented("browse"),
-        .search => try printNotImplemented("search"),
-        .title => try printNotImplemented("title"),
-        .download => try printNotImplemented("download"),
-        .library_build => try printNotImplemented("library build"),
+        .browse => {
+            var gpa_browse: std.heap.GeneralPurposeAllocator(.{}) = .init;
+            defer _ = gpa_browse.deinit();
+            const browse_allocator = gpa_browse.allocator();
+
+            // Determine category
+            const category_str = opts.browse_category orelse "hot";
+            const category: @import("domain/manga.zig").CategoryKind = blk: {
+                if (std.mem.eql(u8, category_str, "hot")) break :blk .hot;
+                if (std.mem.eql(u8, category_str, "trending")) break :blk .trending;
+                if (std.mem.eql(u8, category_str, "new")) break :blk .new_release;
+                if (std.mem.eql(u8, category_str, "updates")) break :blk .last_updates;
+                if (std.mem.eql(u8, category_str, "recommended")) break :blk .recommended;
+                if (std.mem.eql(u8, category_str, "reading-now")) break :blk .reading_now;
+                if (std.mem.eql(u8, category_str, "genre")) break :blk .genre;
+                break :blk .hot;
+            };
+
+            const config = @import("storage/config.zig").Config.defaults;
+            const fanfox_client_mod = @import("fanfox/client.zig");
+            var client = fanfox_client_mod.FanfoxClient.init(browse_allocator, config);
+            defer client.deinit();
+
+            var feed = try client.fetchCategory(category);
+            defer feed.deinit(browse_allocator);
+
+            var buf: [8192]u8 = undefined;
+            var fw = std.fs.File.stdout().writer(&buf);
+
+            try fw.interface.print("Category: {s}\n\n", .{category.label()});
+
+            for (feed.titles) |title| {
+                try fw.interface.print("{s}\n", .{title.title});
+                try fw.interface.print("  URL: {s}\n", .{title.url});
+                try fw.interface.print("  Status: {s}\n", .{title.status.label()});
+                if (title.author) |author| {
+                    try fw.interface.print("  Author: {s}\n", .{author});
+                }
+                try fw.interface.print("\n", .{});
+            }
+
+            try fw.interface.print("Total: {d} titles\n", .{feed.titles.len});
+            try fw.interface.flush();
+        },
+        .search => {
+            if (opts.query == null) {
+                printError("search requires a query string");
+                std.process.exit(1);
+            }
+
+            var gpa_search: std.heap.GeneralPurposeAllocator(.{}) = .init;
+            defer _ = gpa_search.deinit();
+            const search_allocator = gpa_search.allocator();
+
+            const config = @import("storage/config.zig").Config.defaults;
+            const fanfox_client_mod = @import("fanfox/client.zig");
+            var client = fanfox_client_mod.FanfoxClient.init(search_allocator, config);
+            defer client.deinit();
+
+            const results = try client.search(opts.query.?);
+            defer {
+                for (results) |*r| {
+                    @constCast(r).deinit(search_allocator);
+                }
+                search_allocator.free(results);
+            }
+
+            var buf: [8192]u8 = undefined;
+            var fw = std.fs.File.stdout().writer(&buf);
+
+            try fw.interface.print("Search results for: {s}\n\n", .{opts.query.?});
+
+            for (results) |r| {
+                try fw.interface.print("{s}\n", .{r.title});
+                try fw.interface.print("  URL: {s}\n\n", .{r.url});
+            }
+
+            try fw.interface.print("Total: {d} results\n", .{results.len});
+            try fw.interface.flush();
+        },
+        .title => {
+            if (opts.url_or_slug == null) {
+                printError("title command requires a URL or slug");
+                std.process.exit(1);
+            }
+
+            var gpa_title: std.heap.GeneralPurposeAllocator(.{}) = .init;
+            defer _ = gpa_title.deinit();
+            const title_allocator = gpa_title.allocator();
+
+            const config = @import("storage/config.zig").Config.defaults;
+            const fanfox_client_mod = @import("fanfox/client.zig");
+            const endpoints_mod = @import("fanfox/endpoints.zig");
+            const urls_mod = @import("util/urls.zig");
+
+            var client = fanfox_client_mod.FanfoxClient.init(title_allocator, config);
+            defer client.deinit();
+
+            const input = opts.url_or_slug.?;
+            var url_buf: [512]u8 = undefined;
+            const url = if (urls_mod.isFanfoxUrl(input))
+                input
+            else
+                try endpoints_mod.buildMangaUrl(input, &url_buf);
+
+            var title_info = try client.fetchTitle(url);
+            defer title_info.deinit(title_allocator);
+
+            var buf: [8192]u8 = undefined;
+            var fw = std.fs.File.stdout().writer(&buf);
+
+            try fw.interface.print("Title: {s}\n", .{title_info.title});
+            try fw.interface.print("Status: {s}\n", .{title_info.status.label()});
+            try fw.interface.print("URL: {s}\n", .{title_info.url});
+
+            if (title_info.author) |author| {
+                try fw.interface.print("Author: {s}\n", .{author});
+            }
+
+            if (title_info.genres.len > 0) {
+                try fw.interface.print("Genres: ", .{});
+                for (title_info.genres, 0..) |g, i| {
+                    if (i > 0) try fw.interface.print(", ", .{});
+                    try fw.interface.print("{s}", .{g});
+                }
+                try fw.interface.print("\n", .{});
+            }
+
+            if (title_info.summary) |summary| {
+                try fw.interface.print("\nSummary:\n{s}\n", .{summary});
+            }
+
+            try fw.interface.flush();
+
+            // Fetch chapters
+            const chapters = try client.fetchChapters(title_info.slug);
+            defer {
+                for (chapters) |*ch| {
+                    @constCast(ch).deinit(title_allocator);
+                }
+                title_allocator.free(chapters);
+            }
+
+            if (chapters.len > 0) {
+                try fw.interface.print("\nChapters ({d} total):\n", .{chapters.len});
+                for (chapters) |ch| {
+                    try fw.interface.print("  Chapter {s}", .{ch.number});
+                    if (ch.title) |t| try fw.interface.print(" - {s}", .{t});
+                    try fw.interface.print("\n", .{});
+                }
+                try fw.interface.flush();
+            }
+        },
+        .download => {
+            if (opts.url_or_slug == null) {
+                printError("download command requires a URL or slug");
+                std.process.exit(1);
+            }
+
+            var gpa_download: std.heap.GeneralPurposeAllocator(.{}) = .init;
+            defer _ = gpa_download.deinit();
+            const download_allocator = gpa_download.allocator();
+
+            const urls_mod = @import("util/urls.zig");
+            const endpoints_mod = @import("fanfox/endpoints.zig");
+            const fanfox_client_mod = @import("fanfox/client.zig");
+            const download_manager_mod = @import("downloads/manager.zig");
+            const library_builder_mod = @import("library/builder.zig");
+
+            const input = opts.url_or_slug.?;
+            var url_buf: [512]u8 = undefined;
+            const url = if (urls_mod.isFanfoxUrl(input))
+                input
+            else
+                try endpoints_mod.buildMangaUrl(input, &url_buf);
+
+            // Extract slug
+            const slug = urls_mod.extractSlug(url) orelse {
+                printError("Invalid manga URL or slug");
+                std.process.exit(1);
+            };
+
+            var config = @import("storage/config.zig").Config.defaults;
+            config.verbose = opts.verbose;
+            config.retries = opts.retries;
+            config.timeout_ms = opts.timeout_s * 1000;
+            config.delay_ms = opts.delay_ms;
+
+            var client = fanfox_client_mod.FanfoxClient.init(download_allocator, config);
+            defer client.deinit();
+
+            var chapters = try client.fetchChapters(slug);
+            defer {
+                for (chapters) |*ch| {
+                    @constCast(ch).deinit(download_allocator);
+                }
+                download_allocator.free(chapters);
+            }
+
+            // Filter chapters if needed
+            var filtered: []@import("domain/manga.zig").Chapter = chapters;
+            // TODO: implement chapter range filtering based on opts.chapters
+            // For now, use all chapters if --all is set, otherwise just first chapter
+            if (!opts.download_all and opts.chapters == null) {
+                if (chapters.len > 0) {
+                    filtered = chapters[0..1];
+                }
+            }
+
+            if (filtered.len == 0) {
+                var buf: [256]u8 = undefined;
+                var fw = std.fs.File.stdout().writer(&buf);
+                try fw.interface.print("No chapters to download\n", .{});
+                try fw.interface.flush();
+                return;
+            }
+
+            var dm = download_manager_mod.DownloadManager.init(download_allocator, config);
+            defer dm.deinit();
+
+            try dm.downloadAll(slug, filtered, opts.output_dir, opts.verbose);
+
+            var buf: [512]u8 = undefined;
+            var fw = std.fs.File.stdout().writer(&buf);
+            try fw.interface.print("\nDownload complete: {d} chapters to {s}/{s}/\n", .{ filtered.len, opts.output_dir, slug });
+            try fw.interface.flush();
+
+            // Build library if requested
+            if (opts.build_library) {
+                try fw.interface.print("Building library...\n", .{});
+                try fw.interface.flush();
+                try library_builder_mod.buildLibrary(download_allocator, opts.output_dir);
+                try fw.interface.print("Library built successfully\n", .{});
+                try fw.interface.flush();
+            }
+        },
+        .library_build => {
+            var gpa_library: std.heap.GeneralPurposeAllocator(.{}) = .init;
+            defer _ = gpa_library.deinit();
+            const library_allocator = gpa_library.allocator();
+
+            const library_builder_mod = @import("library/builder.zig");
+
+            var buf: [512]u8 = undefined;
+            var fw = std.fs.File.stdout().writer(&buf);
+
+            try fw.interface.print("Building library from: {s}\n", .{opts.library_root});
+            try fw.interface.flush();
+
+            try library_builder_mod.buildLibrary(library_allocator, opts.library_root);
+
+            try fw.interface.print("Library built successfully\n", .{});
+            try fw.interface.print("Open {s}/index.html in your browser\n", .{opts.library_root});
+            try fw.interface.flush();
+        },
     }
 }
 

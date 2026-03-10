@@ -58,3 +58,35 @@
 - `library/builder.zig` — directory walker that generates full HTML library
 
 **Build result:** `zig build` ✅ | `zig build test` ✅ — 95/95 tests pass
+
+### Session: Downloads Manager/Queue + CLI Commands Implementation (2025)
+
+**Phase 5-6 Implementation:**
+- `src/downloads/manager.zig` — implemented DownloadManager with `init`, `deinit`, `downloadChapter`, and `downloadAll` methods
+- `src/downloads/queue.zig` — implemented DownloadQueue with `init`, `deinit`, `enqueue`, `dequeue`, and `len` methods
+- `src/main.zig` — wired up all CLI commands: browse, search, title, download, library_build
+
+**CLI Commands Wired:**
+1. `.browse` — fetches category feeds (hot, trending, new, updates, etc.), prints title list with status and author
+2. `.search` — searches manga by query string, prints results with title and URL
+3. `.title` — fetches title details and chapter list, handles both URL and slug inputs
+4. `.download` — downloads chapters (placeholder for image fetching), supports --all, --chapters, --verbose, --build-library flags
+5. `.library_build` — builds HTML library from local manga directory
+
+**Architecture notes:**
+- Each CLI command creates its own GPA allocator and FanfoxClient instance
+- Download manager creates chapter directories but doesn't fetch images yet (reader parser not implemented)
+- Chapter filtering by range (--chapters N-M) is noted as TODO
+- Library builder runs after download if --build-library flag is set
+
+**Zig 0.15.2 patterns used:**
+- `std.ArrayListUnmanaged(T).empty` for queue initialization (not `.init()`)
+- Writer pattern: `var fw = std.fs.File.stdout().writer(&buf);` with `fw.interface.print()` and `fw.interface.flush()`
+- `@constCast(ptr).deinit()` for deallocating items in const slices
+- Test cleanup with `defer std.fs.cwd().deleteTree(path) catch {}`
+
+**Tests added:**
+- DownloadManager: init/deinit, downloadChapter creates directory
+- DownloadQueue: init/deinit, enqueue/dequeue FIFO behavior, len tracking
+
+**Build result:** `zig build` ✅ | `zig build test` ✅ — 100/100 tests pass

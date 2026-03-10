@@ -31,3 +31,14 @@
 - `std.mem.sort()` takes a comparison function (not a struct method) — use anonymous struct `.lessThan` pattern
 - `@constCast` needed to call deinit on items from a const slice iteration
 - Module compile test in main.zig imports all submodules to catch broken files early
+
+### Phase 4 TUI/FanfoxClient Wiring (completed)
+- Wired TUI actions to FanfoxClient for live network data
+- App struct now owns FanfoxClient instance initialized with Config.defaults
+- Added allocator field to App so actions can manage heap memory
+- All network actions (load_category, load_title, load_chapters, start_search) now fetch real data
+- Memory lifecycle: FanfoxClient returns owned slices → AppState stores them → deinit frees recursively
+- AppState.deinit now properly frees category_titles, current_title, current_chapters, search_results
+- Download queue actions (download_selected, download_all) build full DownloadJob structs with all required fields (manga_slug, chapter_number, url, output_dir)
+- Fixed pre-existing issue in downloads/manager.zig (pointless discard of chapter_dir variable)
+- Build and test both pass
