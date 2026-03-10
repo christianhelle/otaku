@@ -71,26 +71,31 @@ pub const App = struct {
 
     fn render(self: *App) !void {
         var buf: [65536]u8 = undefined;
-        const fw = self.terminal.stdout.writer(&buf);
-        var w = fw.interface;
+        // On Windows, get a fresh stdout handle after raw mode is enabled
+        // SetConsoleMode can affect handle validity for buffered writes
+        const stdout_file = if (comptime @import("builtin").os.tag == .windows)
+            std.fs.File.stdout()
+        else
+            self.terminal.stdout;
+        var fw = stdout_file.writer(&buf);
 
-        try w.writeAll("\x1b[2J\x1b[H");
+        try fw.interface.writeAll("\x1b[2J\x1b[H");
 
         const size = self.terminal.getSize() catch .{ .width = 80, .height = 24 };
 
         switch (self.state.screen) {
-            .home => try self.renderHome(&w, size.width, size.height),
-            .category_list => try self.renderCategoryList(&w, size.width, size.height),
-            .title_detail => try self.renderTitleDetail(&w, size.width, size.height),
-            .chapter_list => try self.renderChapterList(&w, size.width, size.height),
-            .download_queue => try self.renderDownloadQueue(&w, size.width, size.height),
-            .search_results => try self.renderSearchResults(&w, size.width, size.height),
-            .genre_browser => try self.renderGenreBrowser(&w, size.width, size.height),
-            .library => try self.renderLibrary(&w, size.width, size.height),
-            .help => try self.renderHelp(&w, size.width, size.height),
+            .home => try self.renderHome(&fw.interface, size.width, size.height),
+            .category_list => try self.renderCategoryList(&fw.interface, size.width, size.height),
+            .title_detail => try self.renderTitleDetail(&fw.interface, size.width, size.height),
+            .chapter_list => try self.renderChapterList(&fw.interface, size.width, size.height),
+            .download_queue => try self.renderDownloadQueue(&fw.interface, size.width, size.height),
+            .search_results => try self.renderSearchResults(&fw.interface, size.width, size.height),
+            .genre_browser => try self.renderGenreBrowser(&fw.interface, size.width, size.height),
+            .library => try self.renderLibrary(&fw.interface, size.width, size.height),
+            .help => try self.renderHelp(&fw.interface, size.width, size.height),
         }
 
-        try w.flush();
+        try fw.interface.flush();
     }
 
     fn renderHome(self: *App, w: anytype, width: u16, height: u16) !void {

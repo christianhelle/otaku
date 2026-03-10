@@ -44,5 +44,14 @@
 - POSIX raw mode: `std.posix.termios` bitfields; `std.posix.V.MIN/TIME` via `@intFromEnum`.
 - Windows console size: `std.os.windows.kernel32.GetConsoleScreenBufferInfo` with `CONSOLE_SCREEN_BUFFER_INFO.srWindow`.
 - Conditional field types: `field: if (builtin.os.tag == .windows) u32 else void` works correctly; inactive branches not evaluated.
+- **Windows stdout after raw mode:** On Windows, after `SetConsoleMode` is called in `enableRawMode()`, the stdout handle captured at init time becomes invalid for buffered writes. Solution: call `std.fs.File.stdout()` freshly in `render()` on Windows to get a valid handle. POSIX systems don't have this issue and can use the cached handle.
 
 **Architecture:** widgets render with absolute cursor positioning (`\x1b[row;colH`) so each widget is self-contained. All render functions take `anytype` writer (`*Io.Writer` at callsites). Single 65 536-byte render buffer per frame, flushed at end.
+
+### Writer Interface Bug Fix (2025-01-30)
+
+**Root cause:** In Zig 0.15.2, `File.writer(&buf)` returns a buffered writer struct whose `.interface` field (type `std.io.Writer`) contains an internal context pointer that refers back to the parent writer. Copying `fw.interface` into a new variable creates a struct where the context pointer still points to the original `fw`, but the vtable's flush/drain functions operate on the copy's fields → mismatch → `INVALID_HANDLE` error on Windows.
+
+**Fix:** Do NOT copy `.interface`. Use `var fw = file.writer(&buf)` and pass `&fw.interface` (pointer to the interface field) to render functions. The `anytype` parameters in widgets work with `*std.io.Writer` and dereference automatically for method calls like `writer.print(...)`.
+
+**Key takeaway:** Zig writer interfaces contain internal pointers — treat them as non-copyable. Always use the writer in place, or pass pointers to it.
