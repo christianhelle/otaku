@@ -5,7 +5,7 @@
 **Project:** otaku — terminal-based manga browser and downloader  
 **Language:** Zig (0.15.2)  
 **User:** Christian Helle  
-**Build:** `zig build` | **Test:** `zig build test`  
+**Build:** zig build | **Test:** zig build test  
 **Stack:** Zig, terminal UI (TUI), HTTP client, manga scraping  
 **Sources:** MangaFox/FanFox and other manga websites  
 **Repo:** C:\projects\christianhelle\otaku  
@@ -26,10 +26,10 @@
 - Implemented Config with defaults following argiope Options pattern
 - Rewrote main.zig with full CLI dispatch: tui, browse, search, title, download, library build, help, version
 - Simplified build.zig: removed library module export, kept exe + test steps only
-- Zig 0.15.2: `std.fs.File.stdout().writer(&buf)` then `fw.interface.print(...)` — NOT `std.io.getStdOut()`
-- Zig 0.15.2: `std.heap.GeneralPurposeAllocator(.{}) = .init` not `= .{}`
-- `std.mem.sort()` takes a comparison function (not a struct method) — use anonymous struct `.lessThan` pattern
-- `@constCast` needed to call deinit on items from a const slice iteration
+- Zig 0.15.2: std.fs.File.stdout().writer(&buf) then fw.interface.print(...) — NOT std.io.getStdOut()
+- Zig 0.15.2: std.heap.GeneralPurposeAllocator(.{}) = .init not = {}
+- std.mem.sort() takes a comparison function (not a struct method) — use anonymous struct .lessThan pattern
+- @constCast needed to call deinit on items from a const slice iteration
 - Module compile test in main.zig imports all submodules to catch broken files early
 
 ### Phase 4 TUI/FanfoxClient Wiring (completed)
@@ -42,3 +42,12 @@
 - Download queue actions (download_selected, download_all) build full DownloadJob structs with all required fields (manga_slug, chapter_number, url, output_dir)
 - Fixed pre-existing issue in downloads/manager.zig (pointless discard of chapter_dir variable)
 - Build and test both pass
+
+### Phase 5-6 Wiring Coordination
+- Jet implemented DownloadManager (init/deinit, downloadChapter, downloadAll) and DownloadQueue (FIFO semantics)
+- Jet wired all CLI commands: browse, search, title, download, library_build
+- Each command creates fresh GPA allocator and FanfoxClient for isolation
+- TUI layer now fully operational with network integration
+- CLI layer fully operational for browsing, searching, viewing, queueing downloads
+- All 100/100 tests pass in Jet's phase
+- Download image fetching deferred pending reader parser implementation
